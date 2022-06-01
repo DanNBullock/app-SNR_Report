@@ -12,6 +12,8 @@ BVAL=`jq -r '.bval' config.json`
 BVEC=`jq -r '.bvec' config.json`
 ANAT=`jq -r '.anat' config.json`
 
+rm -rf ./tmp
+mkdir ./tmp
 
 difm=dwi
 mask=mask
@@ -32,14 +34,15 @@ mrconvert ${mask}.mif ${mask}.nii.gz -force -nthreads $NCORE -quiet
 
 ## estimate multishell tensor w/ kurtosis and b-value scaling
 echo "Fitting multi-shell tensor model..."
-dwi2tensor -mask ${mask}.mif ${dift}.mif -dkt dk.mif dt.mif -force -nthreads $NCORE -quiet
+dwi2tensor -mask ${mask}.mif ${difm}.mif -dkt dk.mif dt.mif -force -nthreads $NCORE -quiet
 
 ## create tensor metrics either way
 tensor2metric -mask ${mask}.mif -adc md.mif -fa fa.mif -ad ad.mif -rd rd.mif -cl cl.mif -cp cp.mif -cs cs.mif dt.mif -force -nthreads $NCORE -quiet
 
 echo "Creating 5-Tissue-Type (5TT) tracking mask..."
-5ttgen fsl ${anat}.mif 5tt.mif -mask ${mask}.mif -nocrop -sgm_amyg_hipp -scratch ./tmp $([ "$PREMASK" == "true" ] && echo "-premasked") -force -nthreads $NCORE -quiet
+5ttgen fsl ${anat}.mif 5tt.mif -mask ${mask}.mif -nocrop -sgm_amyg_hipp -tempdir ./tmp $([ "$PREMASK" == "true" ] && echo "-premasked") -force -nthreads $NCORE -quiet
 
+5tt2vis 5tt.mif 5ttvis.mif -force -nthreads $NCORE -quiet
 
 mrconvert dk.mif -stride 1,2,3,4 dk.nii.gz -force -nthreads $NCORE -quiet
 ## tensor outputs
@@ -59,3 +62,5 @@ mrconvert dt.mif -stride 1,2,3,4 tensor.nii.gz -force -nthreads $NCORE -quiet
 ## 5 tissue type visualization
 mrconvert 5ttvis.mif -stride 1,2,3,4 5ttvis.nii.gz -force -nthreads $NCORE -quiet
 mrconvert 5tt.mif -stride 1,2,3,4 5tt.nii.gz -force -nthreads $NCORE -quiet
+
+chmod 777 *

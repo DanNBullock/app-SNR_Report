@@ -1,4 +1,6 @@
 {
-    "t1": "t1.nii.gz",
-    "outres": "1 1 1"
+    "diff": "testdata/dwi.nii.gz",
+    "bval": "testdata/dwi.bvals",
+    "bvec": "testdata/dwi.bvecs",
+    "anat": "testdata/t1.nii.gz"
 }

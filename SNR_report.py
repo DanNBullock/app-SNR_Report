@@ -15,6 +15,7 @@ import numpy as np
 import nibabel as nib
 import nilearn
 #import scilpy as scil
+sys.path.append('wma_pyTools')
 import wmaPyTools.roiTools
 import wmaPyTools.streamlineTools
 import wmaPyTools.analysisTools 
@@ -61,7 +62,7 @@ with open('config.json') as config_json:
 #     refT1=None
 
 
-inputTissueNifti=nib.load('5ttvis.nii.gz')
+inputTissueNifti=nib.load('5tt.nii.gz')
 
 #everything except dwi should have been created and on the main path
 dwi=nib.load(config['diff'])
@@ -69,6 +70,8 @@ bval=config['bval']
 bvec=config['bvec']
 refT1=nib.load(config['anat'])
 
+
+tissues=['cortGM','subCortGM','WM','CSF','Path']
 #run some clever conversions here for the 5TT
 
 #first resample it to the dwi data
@@ -86,6 +89,7 @@ if len(resampledFiveTissue.shape)==4:
     #iterate across the tissue labels
     for iTissues in range(resampledFiveTissue.shape[3]):
         roundedDataMask=np.around(resampledFiveTissue.get_data()[:,:,:,iTissues]).astype(bool)
+        print(str(np.sum(roundedDataMask))+' voxels for ' + tissues[iTissues])
         outTissueData[roundedDataMask]=iTissues+1
     tissueNifti=nib.Nifti1Image(outTissueData, resampledFiveTissue.affine)
 else:
@@ -150,13 +154,14 @@ def compute_snr(dwi, bval, bvec, mask):
         val[idx]['bvec'] = bvecs[idx]
         val[idx]['bval'] = bvals[idx]
         val[idx]['mean'] = np.mean(data[..., idx:idx+1][mask > 0])
-
-        val[idx]['std'] = np.std(data[..., idx:idx+1][noise_mask > 0])
-        if val[idx]['std'] == 0:
+        #because I want a report about the std in the specific tissue as well
+        noiseMaskSTD= np.std(data[..., idx:idx+1][noise_mask > 0])
+        val[idx]['std'] = np.std(data[..., idx:idx+1][mask > 0])
+        if noiseMaskSTD == 0:
             raise ValueError('Your noise mask does not capture any data'
                              '(std=0). Please check your noise mask.')
     
-        val[idx]['snr'] = val[idx]['mean'] / val[idx]['std']
+        val[idx]['snr'] = val[idx]['mean'] / noiseMaskSTD
 
     return val
 
@@ -208,7 +213,7 @@ def fullSNR_report(dwi, bval, bvec, refT1=None, fiveTissue=None, other_niftiList
         #b0Indexes=np.where(roundedBvals==0)[0]
         uniqueBvals= np.unique(roundedBvals).astype(int)
         
-        print ('performing analysis for tissue type ' + tissues[tissueIterator] )
+        print ('Computing stastics for tissue type ' + tissues[tissueIterator] )
         for bvalIterator,curBval in enumerate(uniqueBvals):
             #get the current indexes for this bval
             curBvalIndexes=np.where(roundedBvals==np.unique(roundedBvals)[bvalIterator])[0]
@@ -218,31 +223,36 @@ def fullSNR_report(dwi, bval, bvec, refT1=None, fiveTissue=None, other_niftiList
             snrTable.at[bvalIterator,tissues[tissueIterator]+'_'+metrics[0]]=np.mean([snrOut[icurBvalIndexes][metrics[0]] for icurBvalIndexes in curBvalIndexes])
             snrTable.at[bvalIterator,tissues[tissueIterator]+'_'+metrics[1]]=np.mean([snrOut[icurBvalIndexes][metrics[1]] for icurBvalIndexes in curBvalIndexes])
             snrTable.at[bvalIterator,tissues[tissueIterator]+'_'+metrics[2]]=np.mean([snrOut[icurBvalIndexes][metrics[2]] for icurBvalIndexes in curBvalIndexes])
-            print ('performing analysis for bval type ' + str(curBval) )
+            print ('performing SNR analysis for bval level ' + str(curBval) )
         
         
         for iAddIterator,iAdditionalNifti in enumerate(additionalNiftiVec):
             if not iAdditionalNifti==None:
-                if isinstance(fiveTissue, str):
+                if isinstance(iAdditionalNifti, str):
                     currentAddNif=nib.load(iAdditionalNifti)
                 else:
                     currentAddNif=iAdditionalNifti
                     #does this actually work
+                print('Computing tissue-specific metrics for ' + additionalNiftiTypes[iAddIterator])
                 currentSubsetFullData=currentAddNif.get_data()
                 snrTable.at[iAddIterator+len(uniqueBvals),'source']=additionalNiftiTypes[iAddIterator]
-                snrTable.at[iAddIterator+len(uniqueBvals),tissues[tissueIterator]+'_'+metrics[0]]=np.mean(currentSubsetFullData[currentMask.get_data()])
-                snrTable.at[iAddIterator+len(uniqueBvals),tissues[tissueIterator]+'_'+metrics[1]]=np.std(currentSubsetFullData[currentMask.get_data()])
+                snrTable.at[iAddIterator+len(uniqueBvals),tissues[tissueIterator]+'_'+metrics[0]]=np.nanmean(currentSubsetFullData[currentMask.get_data()> 0])
+                snrTable.at[iAddIterator+len(uniqueBvals),tissues[tissueIterator]+'_'+metrics[1]]=np.nanstd(currentSubsetFullData[currentMask.get_data()> 0])
                 snrTable.at[iAddIterator+len(uniqueBvals),tissues[tissueIterator]+'_'+metrics[2]]='NaN' 
                 
         
     return snrTable
 
 other_niftiNames=['fa', 'md', 'ad', 'rd', 'cl', 'cp', 'cs', 'dk']
-other_niftiList=[other_niftiNames+'.nii.gz' for iNames in other_niftiNames]
+other_niftiList=[iNames+'.nii.gz' for iNames in other_niftiNames]
 
 testOut=fullSNR_report(dwi, bval, bvec, refT1, tissueNifti,other_niftiList,other_niftiNames)
 
-testOut.to_csv('snr_report.csv')
+outDir='output'
+if not os.path.exists(outDir):
+    os.makedirs(outDir)
+
+testOut.to_csv(os.path.join(outDir,'snr_report.csv'))
 
 # get ROIS for each tissue type from NMT_segmentation_in_FA.nii.gz
 
