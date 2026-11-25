@@ -3,6 +3,35 @@
 
 # [app name]
 
+<!-- brainlife-app:begin (generated from the App manifest; edit the manifest, not this block) -->
+
+> **Computes tissue- and b-shell-specific SNR and diffusion metric statistics from a DWI and T1w, using MRtrix3 tensor and 5-tissue-type segmentation and DIPY/wma_pyTools.**
+
+Fits a diffusion (and kurtosis) tensor with MRtrix3 inside an FSL bet mask, derives FA, MD, AD, RD and shape maps, builds a five-tissue-type segmentation from the T1w with 5ttgen fsl, resamples it to the DWI grid and reports SNR and other metrics per tissue (cortical GM, subcortical GM, WM, CSF) and per b-shell. Use it as a DWI quality-control step. The T1w and DWI must be aligned; the README is an unfilled template.
+
+| | |
+|---|---|
+| 📥 **Inputs** | `neuro/anat/t1w` · `neuro/dwi` |
+| 📤 **Outputs** | `neuro/snr-stats` |
+| 🐳 **Container** | `brainlife/mrtrix3:3.0.3` |
+| ⚙️ **Resources** | 16 CPUs |
+| 🔗 **Run it** | [doi.org/10.25663/brainlife.app.643](https://doi.org/10.25663/brainlife.app.643) |
+
+#### 📥 Inputs
+
+| Input | Datatype | Required | Description |
+|---|---|---|---|
+| `t1` | `neuro/anat/t1w` | yes | T1-weighted image used to build the 5-tissue-type segmentation. Aligned with the DWI. |
+| `dwi` | `neuro/dwi` | yes | Preprocessed DWI with bvecs and bvals; multi-shell data give per-shell statistics. |
+
+#### 📤 Outputs
+
+| Output | Datatype | Description |
+|---|---|---|
+| `output` | `neuro/snr-stats` | An SNR (and other metric report) with tissue & b-shell specific measurements. |
+
+<!-- brainlife-app:end -->
+
 ## Overview description
 
 This is where the description of the app goes.  Provide quick summaries of:
